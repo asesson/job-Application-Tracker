@@ -263,10 +263,15 @@ export function CalendarView({ className }: CalendarViewProps) {
                   backgroundColor: moment(date).isSame(moment(), 'day') ? '#EFF6FF' : undefined,
                 },
               })}
+              min={new Date(2024, 0, 1, 8, 0, 0)} // 8:00 AM
+              max={new Date(2024, 0, 1, 17, 0, 0)} // 5:00 PM
               formats={{
-                timeGutterFormat: 'HH:mm',
+                timeGutterFormat: 'h:mm A',
                 eventTimeRangeFormat: ({ start, end }) =>
-                  `${moment(start).format('HH:mm')} - ${moment(end).format('HH:mm')}`,
+                  `${moment(start).format('h:mm A')} - ${moment(end).format('h:mm A')}`,
+                dayHeaderFormat: 'dddd, MMMM DD',
+                dayRangeHeaderFormat: ({ start, end }) =>
+                  `${moment(start).format('MMM DD')} - ${moment(end).format('MMM DD, YYYY')}`,
               }}
             />
           </div>
