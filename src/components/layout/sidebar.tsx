@@ -10,6 +10,7 @@ import {
   Briefcase,
   Kanban,
   BarChart3,
+  Calendar,
   Settings,
   LogOut,
   User,
@@ -19,6 +20,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Applications', href: '/applications', icon: Briefcase },
   { name: 'Kanban Board', href: '/board', icon: Kanban },
+  { name: 'Calendar', href: '/calendar', icon: Calendar },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
 ];
 
