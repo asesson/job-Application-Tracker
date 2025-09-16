@@ -3,7 +3,9 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
 import moment from 'moment';
-import { useCalendarEvents, CalendarEvent } from '@/lib/hooks/useCalendar';
+import { useAllCalendarEvents, CalendarEvent } from '@/lib/hooks/useCalendar';
+import { useDeleteCalendarEvent } from '@/lib/hooks/useCalendarEvents';
+import { QuickEventForm } from './quick-event-form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -64,6 +66,36 @@ const eventTypeColors = {
     border: '#7C3AED',
     text: '#FFFFFF',
   },
+  custom: {
+    background: '#3B82F6',
+    border: '#2563EB',
+    text: '#FFFFFF',
+  },
+  interview_prep: {
+    background: '#8B5CF6',
+    border: '#7C3AED',
+    text: '#FFFFFF',
+  },
+  networking: {
+    background: '#10B981',
+    border: '#059669',
+    text: '#FFFFFF',
+  },
+  meeting: {
+    background: '#EF4444',
+    border: '#DC2626',
+    text: '#FFFFFF',
+  },
+  reminder: {
+    background: '#6B7280',
+    border: '#4B5563',
+    text: '#FFFFFF',
+  },
+  other: {
+    background: '#14B8A6',
+    border: '#0F766E',
+    text: '#FFFFFF',
+  },
 };
 
 const eventTypeLabels = {
@@ -71,15 +103,25 @@ const eventTypeLabels = {
   deadline: 'Deadline',
   application: 'Application',
   follow_up: 'Follow-up',
+  custom: 'Job Search Activities',
+  interview_prep: 'Interview Prep',
+  networking: 'Networking',
+  meeting: 'Meeting',
+  reminder: 'Reminder',
+  other: 'Other',
 };
 
 export function CalendarView({ className }: CalendarViewProps) {
-  const { events } = useCalendarEvents();
+  const { events } = useAllCalendarEvents();
+  const deleteEvent = useDeleteCalendarEvent();
   const [view, setView] = useState<View>(Views.MONTH);
   const [date, setDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [showEventDialog, setShowEventDialog] = useState(false);
   const [eventFilter, setEventFilter] = useState<string>('all');
+  const [showQuickEventForm, setShowQuickEventForm] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<any>(null);
+  const [newEventSlot, setNewEventSlot] = useState<{ start: Date; end: Date } | null>(null);
 
   // Filter events based on selected filter
   const filteredEvents = useMemo(() => {
@@ -100,9 +142,55 @@ export function CalendarView({ className }: CalendarViewProps) {
     setView(newView);
   }, []);
 
+  // Handle clicking on empty calendar space to create new event
+  const handleSelectSlot = useCallback((slotInfo: { start: Date; end: Date; slots: Date[] }) => {
+    setNewEventSlot({ start: slotInfo.start, end: slotInfo.end });
+    setEditingEvent(null);
+    setShowQuickEventForm(true);
+  }, []);
+
+  // Handle editing custom events
+  const handleEditEvent = (event: CalendarEvent) => {
+    if (event.resource?.event_id) {
+      // This is a custom event, we can edit it
+      setEditingEvent({
+        id: event.resource.event_id,
+        title: event.title,
+        description: event.description,
+        start_time: event.start.toISOString(),
+        end_time: event.end.toISOString(),
+        event_type: event.type,
+        color: event.color,
+        application_id: event.resource.application_id,
+        location: event.resource.location,
+        notes: event.resource.notes,
+      });
+      setNewEventSlot(null);
+      setShowQuickEventForm(true);
+    }
+  };
+
+  // Handle deleting custom events
+  const handleDeleteEvent = async (event: CalendarEvent) => {
+    if (event.resource?.event_id && confirm('Are you sure you want to delete this event?')) {
+      try {
+        await deleteEvent.mutateAsync(event.resource.event_id);
+        setShowEventDialog(false);
+      } catch (error) {
+        console.error('Error deleting event:', error);
+        alert('Failed to delete event');
+      }
+    }
+  };
+
   // Custom event component
   const EventComponent = ({ event }: { event: CalendarEvent }) => {
-    const colors = eventTypeColors[event.type];
+    const colors = event.color ? {
+      background: event.color,
+      border: event.color,
+      text: '#FFFFFF',
+    } : eventTypeColors[event.type] || eventTypeColors.custom;
+
     return (
       <div
         className="rbc-event-content"
@@ -242,12 +330,19 @@ export function CalendarView({ className }: CalendarViewProps) {
               date={date}
               onNavigate={handleNavigate}
               onSelectEvent={handleSelectEvent}
+              onSelectSlot={handleSelectSlot}
+              selectable={true}
               components={{
                 toolbar: CustomToolbar,
                 event: EventComponent,
               }}
               eventPropGetter={(event: CalendarEvent) => {
-                const colors = eventTypeColors[event.type];
+                const colors = event.color ? {
+                  background: event.color,
+                  border: event.color,
+                  text: '#FFFFFF',
+                } : eventTypeColors[event.type] || eventTypeColors.custom;
+
                 return {
                   style: {
                     backgroundColor: colors.background,
@@ -347,16 +442,48 @@ export function CalendarView({ className }: CalendarViewProps) {
                 )}
                 {selectedEvent.type === 'interview' && selectedEvent.resource?.interview_id && (
                   <Link href={`/applications/${selectedEvent.resource.application_id}?tab=interviews`}>
-                    <Button size="sm">
+                    <Button size="sm" variant="outline">
                       View Interview
                     </Button>
                   </Link>
+                )}
+                {selectedEvent.resource?.event_id && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEditEvent(selectedEvent)}
+                    >
+                      Edit Event
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleDeleteEvent(selectedEvent)}
+                    >
+                      Delete Event
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Quick Event Form Dialog */}
+      <QuickEventForm
+        open={showQuickEventForm}
+        onOpenChange={setShowQuickEventForm}
+        defaultStart={newEventSlot?.start}
+        defaultEnd={newEventSlot?.end}
+        event={editingEvent}
+        onSuccess={() => {
+          setShowQuickEventForm(false);
+          setEditingEvent(null);
+          setNewEventSlot(null);
+        }}
+      />
     </div>
   );
 }

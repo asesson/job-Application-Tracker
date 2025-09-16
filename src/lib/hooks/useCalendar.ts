@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { useApplications } from './useApplications';
 import { useInterviews } from './useInterviews';
+import { useCalendarEvents } from './useCalendarEvents';
 import moment from 'moment';
 
 export interface CalendarEvent {
@@ -10,22 +11,28 @@ export interface CalendarEvent {
   title: string;
   start: Date;
   end: Date;
-  type: 'interview' | 'deadline' | 'application' | 'follow_up';
+  type: 'interview' | 'deadline' | 'application' | 'follow_up' | 'custom' | 'interview_prep' | 'networking' | 'meeting' | 'reminder' | 'other';
   description?: string;
+  color?: string;
   resource?: {
     id: string;
     application_id?: string;
     interview_id?: string;
+    event_id?: string;
     status?: string;
     priority?: string;
     company_name?: string;
     job_title?: string;
+    location?: string;
+    notes?: string;
+    event_type?: string;
   };
 }
 
-export function useCalendarEvents() {
+export function useAllCalendarEvents() {
   const { data: applications = [] } = useApplications();
   const { data: interviews = [] } = useInterviews();
+  const { data: customEvents = [] } = useCalendarEvents();
 
   const events = useMemo((): CalendarEvent[] => {
     const calendarEvents: CalendarEvent[] = [];
@@ -131,14 +138,41 @@ export function useCalendarEvents() {
         });
       });
 
+    // Add custom calendar events
+    customEvents.forEach((customEvent) => {
+      const application = customEvent.application_id
+        ? applications.find(app => app.id === customEvent.application_id)
+        : null;
+
+      calendarEvents.push({
+        id: `custom-${customEvent.id}`,
+        title: customEvent.title,
+        start: moment(customEvent.start_time).toDate(),
+        end: moment(customEvent.end_time).toDate(),
+        type: customEvent.event_type as any,
+        description: customEvent.description,
+        color: customEvent.color,
+        resource: {
+          id: customEvent.id,
+          event_id: customEvent.id,
+          application_id: customEvent.application_id,
+          company_name: application?.company_name,
+          job_title: application?.job_title,
+          location: customEvent.location,
+          notes: customEvent.notes,
+          event_type: customEvent.event_type,
+        },
+      });
+    });
+
     return calendarEvents.sort((a, b) => a.start.getTime() - b.start.getTime());
-  }, [applications, interviews]);
+  }, [applications, interviews, customEvents]);
 
   return { events };
 }
 
 export function useUpcomingEvents(limit = 5) {
-  const { events } = useCalendarEvents();
+  const { events } = useAllCalendarEvents();
 
   const upcomingEvents = useMemo(() => {
     const now = new Date();
@@ -151,7 +185,7 @@ export function useUpcomingEvents(limit = 5) {
 }
 
 export function useEventsByType() {
-  const { events } = useCalendarEvents();
+  const { events } = useAllCalendarEvents();
 
   const eventsByType = useMemo(() => {
     return events.reduce((acc, event) => {
@@ -167,7 +201,7 @@ export function useEventsByType() {
 }
 
 export function useTodaysEvents() {
-  const { events } = useCalendarEvents();
+  const { events } = useAllCalendarEvents();
 
   const todaysEvents = useMemo(() => {
     const today = moment().startOf('day');
