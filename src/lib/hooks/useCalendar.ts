@@ -59,8 +59,9 @@ export function useCalendarEvents() {
     // Add application deadline events
     applications.forEach((application) => {
       if (application.deadline) {
-        const deadlineDate = moment(application.deadline).toDate();
-        const deadlineEndDate = moment(application.deadline).add(1, 'hour').toDate();
+        // Parse as date-only to avoid timezone issues
+        const deadlineDate = moment(application.deadline, 'YYYY-MM-DD').startOf('day').toDate();
+        const deadlineEndDate = moment(application.deadline, 'YYYY-MM-DD').startOf('day').add(1, 'hour').toDate();
 
         calendarEvents.push({
           id: `deadline-${application.id}`,
@@ -83,8 +84,9 @@ export function useCalendarEvents() {
 
     // Add application submission dates
     applications.forEach((application) => {
-      const applicationDate = moment(application.application_date).toDate();
-      const applicationEndDate = moment(application.application_date).add(1, 'hour').toDate();
+      // Parse as date-only to avoid timezone issues
+      const applicationDate = moment(application.application_date, 'YYYY-MM-DD').startOf('day').toDate();
+      const applicationEndDate = moment(application.application_date, 'YYYY-MM-DD').startOf('day').add(1, 'hour').toDate();
 
       calendarEvents.push({
         id: `application-${application.id}`,
@@ -106,9 +108,9 @@ export function useCalendarEvents() {
 
     // Add follow-up reminders (for applications that need follow-up)
     applications
-      .filter(app => app.status === 'applied' && moment().diff(moment(app.application_date), 'days') >= 7)
+      .filter(app => app.status === 'applied' && moment().diff(moment(app.application_date, 'YYYY-MM-DD'), 'days') >= 7)
       .forEach((application) => {
-        const followUpDate = moment(application.application_date).add(2, 'weeks').toDate();
+        const followUpDate = moment(application.application_date, 'YYYY-MM-DD').add(2, 'weeks').startOf('day').toDate();
         const followUpEndDate = moment(followUpDate).add(1, 'hour').toDate();
 
         calendarEvents.push({

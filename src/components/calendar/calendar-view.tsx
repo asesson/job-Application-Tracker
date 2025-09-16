@@ -263,8 +263,8 @@ export function CalendarView({ className }: CalendarViewProps) {
                   backgroundColor: moment(date).isSame(moment(), 'day') ? '#EFF6FF' : undefined,
                 },
               })}
-              min={new Date(2024, 0, 1, 8, 0, 0)} // 8:00 AM
-              max={new Date(2024, 0, 1, 17, 0, 0)} // 5:00 PM
+              scrollToTime={new Date(2024, 0, 1, 8, 0, 0)} // Scroll to 8:00 AM by default
+              // No min/max to allow full 24-hour access
               formats={{
                 timeGutterFormat: 'h:mm A',
                 eventTimeRangeFormat: ({ start, end }) =>
