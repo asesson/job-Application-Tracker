@@ -5,6 +5,7 @@ import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
 import moment from 'moment';
 import { useAllCalendarEvents, CalendarEvent } from '@/lib/hooks/useCalendar';
 import { useDeleteCalendarEvent } from '@/lib/hooks/useCalendarEvents';
+import { useGoogleCalendarStatus } from '@/lib/hooks/useGoogleCalendarStatus';
 import { QuickEventForm } from './quick-event-form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
+  Cloud,
+  CloudOff,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -114,6 +119,7 @@ const eventTypeLabels = {
 export function CalendarView({ className }: CalendarViewProps) {
   const { events } = useAllCalendarEvents();
   const deleteEvent = useDeleteCalendarEvent();
+  const { connected: googleConnected, settings: googleSettings } = useGoogleCalendarStatus();
   const [view, setView] = useState<View>(Views.MONTH);
   const [date, setDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -191,9 +197,27 @@ export function CalendarView({ className }: CalendarViewProps) {
       text: '#FFFFFF',
     } : eventTypeColors[event.type] || eventTypeColors.custom;
 
+    // Determine if this event type should be synced based on settings
+    const shouldSync = googleConnected && googleSettings && (
+      (event.type === 'interview' && googleSettings.sync_interviews) ||
+      (event.type === 'deadline' && googleSettings.sync_deadlines) ||
+      (event.type === 'application' && googleSettings.sync_applications) ||
+      (event.type === 'follow_up' && googleSettings.sync_follow_ups) ||
+      (event.type === 'custom' && googleSettings.sync_custom_events) ||
+      (event.type === 'interview_prep' && googleSettings.sync_custom_events) ||
+      (event.type === 'networking' && googleSettings.sync_custom_events) ||
+      (event.type === 'meeting' && googleSettings.sync_custom_events) ||
+      (event.type === 'reminder' && googleSettings.sync_custom_events) ||
+      (event.type === 'other' && googleSettings.sync_custom_events)
+    );
+
+    // Check if event is synced (has google_event_id in resource)
+    const isSynced = event.resource?.google_event_id ||
+      (event.id.startsWith('custom-') && event.resource?.event_id);
+
     return (
       <div
-        className="rbc-event-content"
+        className="rbc-event-content relative"
         style={{
           backgroundColor: colors.background,
           borderColor: colors.border,
@@ -204,7 +228,18 @@ export function CalendarView({ className }: CalendarViewProps) {
           fontWeight: 500,
         }}
       >
-        <div className="truncate">{event.title}</div>
+        <div className="flex items-center">
+          <div className="truncate flex-1">{event.title}</div>
+          {googleConnected && shouldSync && (
+            <div className="ml-1 flex-shrink-0">
+              {isSynced ? (
+                <Cloud className="h-3 w-3 opacity-75" />
+              ) : (
+                <CloudOff className="h-3 w-3 opacity-75" />
+              )}
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -240,6 +275,19 @@ export function CalendarView({ className }: CalendarViewProps) {
       </div>
 
       <div className="flex items-center space-x-4">
+        {/* Google Calendar Status */}
+        {googleConnected && (
+          <div className="flex items-center space-x-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+            <Cloud className="h-4 w-4 text-green-600" />
+            <span className="text-sm text-green-700 font-medium">Google Calendar</span>
+            {googleSettings?.last_sync_at && (
+              <span className="text-xs text-green-600">
+                • Last sync: {moment(googleSettings.last_sync_at).fromNow()}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Event Type Filter */}
         <div className="flex items-center space-x-2">
           <Filter className="h-4 w-4 text-gray-500" />
@@ -428,6 +476,61 @@ export function CalendarView({ className }: CalendarViewProps) {
                   <Badge variant="outline">
                     {selectedEvent.resource.status.replace('_', ' ').toUpperCase()}
                   </Badge>
+                </div>
+              )}
+
+              {/* Google Calendar Sync Status */}
+              {googleConnected && (
+                <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-1">
+                    {(() => {
+                      const shouldSync = googleSettings && (
+                        (selectedEvent.type === 'interview' && googleSettings.sync_interviews) ||
+                        (selectedEvent.type === 'deadline' && googleSettings.sync_deadlines) ||
+                        (selectedEvent.type === 'application' && googleSettings.sync_applications) ||
+                        (selectedEvent.type === 'follow_up' && googleSettings.sync_follow_ups) ||
+                        (selectedEvent.type === 'custom' && googleSettings.sync_custom_events) ||
+                        (selectedEvent.type === 'interview_prep' && googleSettings.sync_custom_events) ||
+                        (selectedEvent.type === 'networking' && googleSettings.sync_custom_events) ||
+                        (selectedEvent.type === 'meeting' && googleSettings.sync_custom_events) ||
+                        (selectedEvent.type === 'reminder' && googleSettings.sync_custom_events) ||
+                        (selectedEvent.type === 'other' && googleSettings.sync_custom_events)
+                      );
+
+                      const isSynced = selectedEvent.resource?.google_event_id ||
+                        (selectedEvent.id.startsWith('custom-') && selectedEvent.resource?.event_id);
+
+                      if (!googleSettings?.sync_enabled) {
+                        return (
+                          <>
+                            <CloudOff className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm text-gray-600">Google Calendar sync disabled</span>
+                          </>
+                        );
+                      } else if (!shouldSync) {
+                        return (
+                          <>
+                            <AlertCircle className="h-4 w-4 text-yellow-500" />
+                            <span className="text-sm text-gray-600">This event type is not synced</span>
+                          </>
+                        );
+                      } else if (isSynced) {
+                        return (
+                          <>
+                            <Cloud className="h-4 w-4 text-green-500" />
+                            <span className="text-sm text-gray-600">Synced with Google Calendar</span>
+                          </>
+                        );
+                      } else {
+                        return (
+                          <>
+                            <RefreshCw className="h-4 w-4 text-blue-500" />
+                            <span className="text-sm text-gray-600">Pending sync to Google Calendar</span>
+                          </>
+                        );
+                      }
+                    })()}
+                  </div>
                 </div>
               )}
 

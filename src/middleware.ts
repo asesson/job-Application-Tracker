@@ -2,7 +2,40 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
-  // TEMPORARY: Disable middleware for testing
+  // Special handling for API routes - just pass them through with cookies
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    let supabaseResponse = NextResponse.next({
+      request,
+    });
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+            supabaseResponse = NextResponse.next({
+              request,
+            });
+            cookiesToSet.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options)
+            );
+          },
+        },
+      }
+    );
+
+    // Refresh the session for API routes
+    await supabase.auth.getUser();
+
+    return supabaseResponse;
+  }
+
+  // For non-API routes, just pass through for now
   return NextResponse.next();
 
   // Original middleware code (disabled for now)
